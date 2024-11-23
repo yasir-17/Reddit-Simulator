@@ -16,6 +16,12 @@ type CommentResult is ((Success, CommentData) | (Failure, String))
 type VoteResult is ((Success, String) | (Failure, String))
 type FeedResult is ((Success, Array[PostData] val) | (Failure, String))
 type JoinResult is ((Success, String) | (Failure, String))
+type SubredditPostsResult is ((Success, Array[PostData] val) | (Failure, String))
+type SubredditUsersResult is ((Success, Array[UserData] val) | (Failure, String))
+type PostDetailsResult is ((Success, PostDetails) | (Failure, String))
+type MessageResult is ((Success, MessageData) | (Failure, String))
+type MessageListResult is ((Success, Array[MessageWithSender] val) | (Failure, String))
+
 
 class val UserData
   let id: String
@@ -142,6 +148,55 @@ class val CommentData
     replies = replies'
     score = score'
 
+class val MessageData
+  let id: String
+  let content: String
+  let sender_id: String
+  let receiver_id: String
+  let created_at: I64
+  let parent_message_id: (String | None)
+
+  new val create(
+    id': String,
+    content': String,
+    sender_id': String,
+    receiver_id': String,
+    created_at': I64,
+    parent_message_id': (String | None)
+  ) =>
+    id = id'
+    content = content'
+    sender_id = sender_id'
+    receiver_id = receiver_id'
+    created_at = created_at'
+    parent_message_id = parent_message_id'
+
+class val PostDetails
+  let post: PostData
+  let author_name: String
+  let comments: Array[CommentWithAuthor] val
+
+  new val create(post': PostData, author_name': String, comments': Array[CommentWithAuthor] val) =>
+    post = post'
+    author_name = author_name'
+    comments = comments'
+
+class val CommentWithAuthor
+  let comment: CommentData
+  let author_name: String
+
+  new val create(comment': CommentData, author_name': String) =>
+    comment = comment'
+    author_name = author_name'
+
+class val MessageWithSender
+  let message: MessageData
+  let sender_name: String
+
+  new val create(message': MessageData, sender_name': String) =>
+    message = message'
+    sender_name = sender_name'
+
 actor RedditEngine
   let _users: Map[String, UserData] = _users.create()
   let _subreddits: Map[String, SubredditData] = _subreddits.create()
@@ -149,6 +204,7 @@ actor RedditEngine
   let _env: Env
   let _rng: Random
   let _comments: Map[String, CommentData] = _comments.create()
+  let _messages: Map[String, MessageData] = _messages.create()
 
   new create(env: Env) =>
     _env = env
@@ -246,6 +302,26 @@ actor RedditEngine
       0
     )
     _posts(post_id) = post
+    try
+      let subreddit = _subreddits(subreddit_id)?
+      let new_posts = recover Array[String] end
+      for p in subreddit.posts.values() do
+        new_posts.push(p)
+      end
+      new_posts.push(post_id)
+
+      let new_subreddit = SubredditData(
+        subreddit.id,
+        subreddit.name,
+        subreddit.description,
+        subreddit.creator_id,
+        subreddit.created_at,
+        subreddit.members,
+        consume new_posts
+      )
+      _subreddits(subreddit_id) = new_subreddit
+    end
+
     callback((Success, post))
 
   be join_subreddit(
@@ -277,10 +353,31 @@ actor RedditEngine
             subreddit.posts
         )
         _subreddits(subreddit_id) = new_subreddit
-        callback((Success, "Successfully joined subreddit"))
-        else
-        callback((Failure, "User already member of subreddit"))
+        try
+          let user = _users(user_id)?
+          let new_subreddits = recover Array[String] end
+          for s in user.subreddits.values() do
+            new_subreddits.push(s)
+          end
+          new_subreddits.push(subreddit_id)
+
+          let new_user = UserData(
+            user.id,
+            user.username,
+            user.password,
+            user.created_at,
+            consume new_subreddits,
+            user.posts,
+            user.comments,
+            user.karma
+          )
+          _users(user_id) = new_user
         end
+
+        callback((Success, "Successfully joined subreddit"))
+      else
+        callback((Failure, "User already member of subreddit"))
+      end
     else
         callback((Failure, "Error accessing subreddit data"))
     end
@@ -324,6 +421,62 @@ actor RedditEngine
         end
     else
         callback((Failure, "Error accessing subreddit data"))
+    end
+  
+  be send_message(
+    content: String,
+    sender_id: String,
+    receiver_id: String,
+    parent_message_id: (String | None),
+    callback: {(MessageResult)} val
+  ) =>
+    if not (_users.contains(sender_id) and _users.contains(receiver_id)) then
+      callback((Failure, "Sender or receiver not found"))
+      return
+    end
+
+    match parent_message_id
+    | let id: String =>
+      if not _messages.contains(id) then
+        callback((Failure, "Parent message not found"))
+        return
+      end
+    end
+
+    let message_id = _generate_id()
+    let message = MessageData(
+      message_id,
+      content,
+      sender_id,
+      receiver_id,
+      Time.now()._1,
+      parent_message_id
+    )
+    
+    _messages(message_id) = message
+    callback((Success, message))
+
+
+  be get_messages(
+    user_id: String,
+    callback: {(MessageListResult)} val
+  ) =>
+    if not _users.contains(user_id) then
+      callback((Failure, "User not found"))
+      return
+    end
+
+    try
+      let messages = recover Array[MessageWithSender] end
+      for message in _messages.values() do
+        if (message.receiver_id == user_id) then
+          let sender = _users(message.sender_id)?
+          messages.push(MessageWithSender(message, sender.username))
+        end
+      end
+      callback((Success, consume messages))
+    else
+      callback((Failure, "Failed to get messages"))
     end
 
   be add_comment(
@@ -413,6 +566,24 @@ actor RedditEngine
     else
       callback((Failure, "Failed to add comment"))
     end
+  
+  be get_post_details(post_id: String, callback: {(PostDetailsResult)} val) =>
+    try
+      let post = _posts(post_id)?
+      let author = _users(post.author_id)?
+      let comments = recover Array[CommentWithAuthor] end
+      for comment_id in post.comments.values() do
+        if _comments.contains(comment_id) then
+          let comment = _comments(comment_id)?
+          let comment_author = _users(comment.author_id)?
+          comments.push(CommentWithAuthor(comment, comment_author.username))
+        end
+      end
+      let details = PostDetails(post, author.username, consume comments)
+      callback((Success, details))
+    else
+      callback((Failure, "Failed to get post details"))
+    end
 
   be vote(
     user_id: String,
@@ -432,6 +603,45 @@ actor RedditEngine
     else
         callback((Failure, "Target not found"))
     end
+
+    be get_subreddit_posts(subreddit_id: String, callback: {(SubredditPostsResult)} val) =>
+      if not _subreddits.contains(subreddit_id) then
+        callback((Failure, "Subreddit not found"))
+        return
+      end
+
+      try
+        let subreddit = _subreddits(subreddit_id)?
+        let posts = recover Array[PostData] end
+        for post_id in subreddit.posts.values() do
+          if _posts.contains(post_id) then
+            posts.push(_posts(post_id)?)
+          end
+        end
+        callback((Success, consume posts))
+      else
+        callback((Failure, "Error retrieving subreddit posts"))
+      end
+
+    be get_subreddit_users(subreddit_id: String, callback: {(SubredditUsersResult)} val) =>
+      if not _subreddits.contains(subreddit_id) then
+        callback((Failure, "Subreddit not found"))
+        return
+      end
+
+      try
+        let subreddit = _subreddits(subreddit_id)?
+        let users = recover Array[UserData] end
+        for user_id in subreddit.members.values() do
+          if _users.contains(user_id) then
+            users.push(_users(user_id)?)
+          end
+        end
+        callback((Success, consume users))
+      else
+        callback((Failure, "Error retrieving subreddit users"))
+      end
+
 
     be get_feed(
     user_id: String,
