@@ -10,6 +10,7 @@
 # Simulation
 1) Get number of users from command line.
 2) Get number of subreddit to be created from the command line.
+3) Users are online when they registered and they become offline after some time. 
 3) The number of posts and comments are directly added in the code. Its also possible to get these from the command line.
 4) Zipf distribution have been implmented. The subreddit with more users have more posts and viceversa.
 

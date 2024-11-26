@@ -3,6 +3,14 @@ use "time"
 use "random"
 use "format"
 
+class UserConnectionStatus
+  let username: String
+  var is_online: Bool = false
+
+  new create(name: String) =>
+    username = name
+    is_online = false
+
 class SimulateCommentsAndVotes is TimerNotify
   let _simulator: RedditSimulator tag
 
@@ -49,6 +57,7 @@ actor RedditSimulator
   var _subreddit_count: USize = 0
   var _registered_users: USize = 0
   var _created_subreddits: USize = 0
+  var _connection_statuses: Array[UserConnectionStatus] = Array[UserConnectionStatus]
 
   new create(env: Env, reddit: RedditEngine) =>
     _env = env
@@ -100,9 +109,17 @@ actor RedditSimulator
     match result
     | (Success, let user: UserData) =>
       _users.push(user)
+      
+      // Create and track connection status
+      let status = UserConnectionStatus(user.username)
+      status.is_online = true  // Immediately set to online when created
+      _connection_statuses.push(status)
+      
       _registered_users = _registered_users + 1
-      _env.out.print("Registered user: " + user.username)
+      _env.out.print("Registered user: " + user.username + " (Online)")
+      
       if _registered_users == _user_count then
+        print_online_status()
         create_subreddits()
       end
     else
@@ -278,6 +295,26 @@ actor RedditSimulator
     else
       _env.out.print("Failed to get messages for " + username)
     end
+  
+  be print_online_status() =>
+    _env.out.print("\n--- User Connection Status ---")
+    var online_count: USize = 0
+    for status in _connection_statuses.values() do
+      if status.is_online then
+        _env.out.print(status.username + ": Online")
+        online_count = online_count + 1
+      end
+    end
+    _env.out.print("Total Online Users: " + online_count.string() + " / " + _user_count.string())
+
+  be go_offline() =>
+    _env.out.print("\n--- Going Offline ---")
+    for status in _connection_statuses.values() do
+      status.is_online = false
+      _env.out.print(status.username + ": Offline")
+    end
+    
+    _env.out.print("All users are now offline.")
 
 
   be simulate_activities() =>
@@ -424,7 +461,7 @@ actor RedditSimulator
       else
         _env.out.print("No posts available to display details")
       end
-
+      
     else
       _env.out.print("An error occurred during simulation")
     end
