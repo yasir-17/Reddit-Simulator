@@ -21,30 +21,30 @@ class SimulateCommentsAndVotes is TimerNotify
     _simulator.simulate_comments_and_votes()
     false
 
-actor Main
-  new create(env: Env) =>
-    try
-      // Parse command line arguments
-      if env.args.size() < 3 then
-        env.out.print("Usage: program <number_of_users> <number_of_subreddits>")
-        error
-      end
+// actor Main
+//   new create(env: Env) =>
+//     try
+//       // Parse command line arguments
+//       if env.args.size() < 3 then
+//         env.out.print("Usage: program <number_of_users> <number_of_subreddits>")
+//         error
+//       end
       
-      let user_count = env.args(1)?.usize()?
-      let subreddit_count = env.args(2)?.usize()?
+//       let user_count = env.args(1)?.usize()?
+//       let subreddit_count = env.args(2)?.usize()?
       
-      // Validate input
-      if (user_count == 0) or (subreddit_count == 0) then
-        env.out.print("Error: Number of users and subreddits must be greater than 0")
-        error
-      end
+//       // Validate input
+//       if (user_count == 0) or (subreddit_count == 0) then
+//         env.out.print("Error: Number of users and subreddits must be greater than 0")
+//         error
+//       end
       
-      let reddit = RedditEngine(env)
-      let simulator = RedditSimulator(env, reddit)
-      simulator.start(user_count, subreddit_count)
-    else
-      env.out.print("Error: Invalid input. Please provide valid positive numbers for users and subreddits.")
-    end
+//       let reddit = RedditEngine(env)
+//       let simulator = RedditSimulator(env, reddit)
+//       simulator.start(user_count, subreddit_count)
+//     else
+//       env.out.print("Error: Invalid input. Please provide valid positive numbers for users and subreddits.")
+//     end
 
 actor RedditSimulator
   let _env: Env
