@@ -119,6 +119,7 @@ class BackendHandler is Handler
         | "/subreddit_posts" => process_get_subreddit_posts(rid)
         | "/subreddit_users" => process_get_subreddit_users(rid)
         | "/user_feed" => process_get_feed(rid)
+        | "/vote" => process_vote(rid)
         else
           _response_handler.send_response(StatusNotFound, """{"error": "Not Found"}""", rid)
         end
@@ -213,7 +214,27 @@ class BackendHandler is Handler
       _response_handler.send_response(StatusBadRequest, """{"error": "Invalid request body"}""", request_id)
     end
 
+  fun ref process_vote(request_id: RequestID) =>
+    try
+      let json = JsonDoc.>parse(_request_body)?
+      let obj = json.data as JsonObject
+      let user_id = obj.data("user_id")? as String
+      let target_id = obj.data("target_id")? as String
+      let is_upvote = obj.data("is_upvote")? as Bool
 
+      _env.out.print("Processing vote by user " + user_id + " on target " + target_id)
+      
+      _reddit_engine.vote(user_id, target_id, is_upvote, { (result: VoteResult) =>
+        match result
+        | (Success, let message: String) =>
+          _response_handler.send_response(StatusOK, """{"message": """ + message + """}""", request_id)
+        | (Failure, let error_string: String) =>
+          _response_handler.send_response(StatusBadRequest, """{"error": """ + error_string + """}""", request_id)
+        end
+      })
+    else
+      _response_handler.send_response(StatusBadRequest, """{"error": "Invalid request body"}""", request_id)
+    end
 
   fun ref process_add_comment(request_id: RequestID) =>
     try
@@ -250,7 +271,6 @@ class BackendHandler is Handler
       _response_handler.send_response(StatusBadRequest, """{"error": "Invalid request body"}""", request_id)
     end
 
-  // Updated method to process sending a message
   fun ref process_send_message(request_id: RequestID) =>
     try
       let json = JsonDoc.>parse(_request_body)?
@@ -286,7 +306,6 @@ class BackendHandler is Handler
       _response_handler.send_response(StatusBadRequest, """{"error": "Invalid request body"}""", request_id)
     end
 
-  // Updated method to process getting messages for a user
   fun ref process_get_messages(request_id: RequestID) =>
     try
       let json = JsonDoc.>parse(_request_body)?
