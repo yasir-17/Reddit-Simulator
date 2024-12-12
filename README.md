@@ -29,3 +29,53 @@
 
 # Maximum network running
 The maximum network I was able to run was 64000 users and 4000 subreddits. 
+
+
+
+### 4.2
+
+I have used corral which is a dependency management tool for Pony. See the following link for more information and its installation
+https://github.com/ponylang/corral
+
+## Compilation
+Use the command corral run -- ponyc --define openssl_0.9.0 
+
+## Demonstration
+The following curl command could be used to verify the functionality
+
+- Register user
+    curl -Uri "http://localhost:8080/register" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"username": "testuser1", "password": "securepassword"}'
+
+- Create Subreddit
+    curl -Uri "http://localhost:8080/subreddit" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"name": "funny", "description": "A place for laughs", "creator_id": "user1"}'
+
+- Join Subreddit
+    curl -Uri "http://localhost:8080/join_subreddit" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"user_id": "user1", "subreddit_id": "subreddit1"}'
+
+- Create Post
+    curl -Uri "http://localhost:8080/create_post" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"title": "First Post", "content": "Hello, world!", "author_id": "user1", "subreddit_id": "subreddit1"}'
+
+- Add Comment
+    curl -Uri "http://localhost:8080/add_comment" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"content": "This is a comment", "author_id": "user1", "post_id": "post1", "parent_comment_id": null}'
+
+- Send Message
+    curl -Uri "http://localhost:8080/send_message" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"content": "Hello!", "sender_id": "user1", "receiver_id": "user2", "parent_message_id": null}'
+
+- Get Message
+    curl -Uri "http://localhost:8080/get_messages" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"user_id": "user1"}'
+
+- Get subreddit post
+    curl -Uri "http://localhost:8080/subreddit_posts" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"subreddit_id": "subreddit1"}'
+
+- Get subreddit user
+    curl -Uri "http://localhost:8080/subreddit_users" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"subreddit_id": "subreddit1"}'
+
+- Get user feed
+    curl -Uri "http://localhost:8080/user_feed" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"user_id": "user1"}'
+
+- Vote
+    curl -Uri "http://localhost:8080/vote" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"user_id": "user1", "target_id": "post_or_comment_id", "is_upvote": true}'
+
+
+## Demo
+https://youtu.be/Ep6kw1Z9QvM
